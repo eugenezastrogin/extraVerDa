@@ -37,7 +37,9 @@ const getBody = async (address, online=true) => {
           'INSERT OR IGNORE INTO data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         raw_data.forEach(comp => {
-          const comp_name = comp[0][1];
+          let comp_name = comp[0][1].replace(/\u00a0/g, ' ').split(' ');
+          comp_name.pop()
+          comp_name = comp_name.join(' ');
           const comp_cats = comp[0][2].split(' / ');
           comp.slice(3).forEach(r => stmt.run(
             event_name,
@@ -164,6 +166,7 @@ function stages_by_class(comp_class, stage) {
           SELECT stage,
                  competitor_class,
                  competitor_name,
+                 time,
                  ROUND(stage_points, 1) AS STAGE_POINTS,
                  ROUND(
                      (stage_points /
@@ -174,7 +177,7 @@ function stages_by_class(comp_class, stage) {
           FROM stage_points_tb
           ORDER BY stage, stage_points DESC
       )
-      SELECT RANK, STAGE_POINTS, STAGE_PERCENT, competitor_name FROM stage_result
+      SELECT RANK, time, STAGE_POINTS, STAGE_PERCENT, competitor_name FROM stage_result
       ` +
       'WHERE competitor_class=? AND stage=?' +
       'ORDER BY RANK',

@@ -1,11 +1,24 @@
 <script>
+  import { count } from './stores.js';
+  import Incrementer from './Incrementer.svelte';
+  import Decrementer from './Decrementer.svelte';
+  import DataView from './DataView.svelte';
+
   let specificsFetch;
-  let dataFetch;
-  let displayControls = false;
-  // initial 1 / classes 1 / competitors 2 / stages 3
-  let stage = 0;
+  let shooterStageFetch;
+  let viewType;
+
   let _class;
   let shooter;
+  let num;
+  let stage;
+  let initSubscription = true;
+
+  const unsubscribe = count.subscribe(value => {
+    stage = value;
+    initSubscription ? '' : getClassByStage();
+    initSubscription = false;
+  });
 
   async function sendRequest(req) {
     const res = await fetch(req);
@@ -18,58 +31,93 @@
     }
   }
 
-  function handleClickClasses() {
-    displayControls = true;
-    stage = 1;
+  function handleChooseClass() {
+    _class = undefined;
+    shooter = undefined;
     specificsFetch = sendRequest('classes');
   }
 
-  function handleFetchData(e) {
-    stage += 1;
+  function handleChooseShooter() {
+    shooter = undefined;
+    specificsFetch = sendRequest('competitors?class=' + _class);
+  }
 
-    if (stage === 2) {
-      _class = e.srcElement.id;
-      dataFetch = sendRequest('competitors?class=' + _class);
-    } else if (stage === 3) {
-      displayControls = false;
-      const num = e.srcElement.id.split(' ')[0].slice(1);
-      shooter = e.srcElement.id;
-      dataFetch = sendRequest('stages?n=' + num);
-    }
+  function handleChooseStage() {
+    stage = undefined;
+  }
+
+  function handleClickClass(e) {
+    shooter = undefined;
+    _class = e.srcElement.innerText;
+    specificsFetch = undefined;
+  }
+
+  function handleClickShooter(e) {
+    shooter = e.srcElement.innerText;
+    num = e.srcElement.innerText.split(' ')[0].slice(1);
+    specificsFetch = undefined;
+  }
+
+  function getShooterByStage() {
+    shooterStageFetch = sendRequest('stages?n=' + num);
+    viewType = 'shooterView';
+  }
+
+  function getClassByStage() {
+    shooterStageFetch = sendRequest(`stages?class=${_class}&stage=${stage}`);
+    viewType = 'stageView';
+  }
+
+  function getOverall() {
+  }
+
+  function getCombinedOverall() {
   }
 
 </script>
 
-<button on:click={handleClickClasses}>
+<style>
+  #stage {
+    width: 2em;
+  }
+</style>
+
+<button on:click={getOverall}>
   Overall
 </button>
 
-<button on:click={handleClickClasses}>
+<button disabled={_class===undefined} on:click={getClassByStage}>
+  {_class || 'Class'} by stage
+</button>
+
+<button disabled={shooter===undefined} on:click={getShooterByStage}>
+  Shooter by stage
+</button>
+
+<button on:click={getCombinedOverall}>
   Combined Overall
 </button>
 
-{#if _class}
-<button on:click={handleClickClasses}>
-  {_class} by stage
+<button on:click={getCombinedOverall}>
+  Combined by stage
 </button>
-{/if}
 
-{#if shooter}
-<button on:click={handleClickClasses}>
-  Shooter by stage
-</button>
-{/if}
-<br/>
+<hr/>
 
-<button on:click={handleClickClasses}>
+<button on:click={handleChooseClass}>
   {_class || 'Выбрать класс'}
 </button>
 
-{#if _class}
-<button on:click={handleClickClasses}>
-  {shooter || 'Выбрать стрелка'}
+<button disabled={_class===undefined} on:click={handleChooseShooter}>
+  {shooter ? shooter.split(' ').splice(1).join(' ') : shooter || 'Выбрать стрелка'}
 </button>
-{/if}
+
+<span hidden={_class===undefined}>
+  <Incrementer/>
+    {stage} stage
+  <Decrementer/>
+</span>
+
 <br/>
 
 {#if specificsFetch}
@@ -77,33 +125,20 @@
     <p>...запрашиваю</p>
   {:then data}
     {#each data as item}
-      <button id={item} on:click={handleFetchData}>{item}</button><br/>
+      <button on:click={_class ? handleClickShooter : handleClickClass}>
+        {item}
+      </button><br/>
     {/each}
   {:catch error}
     <p style="color: red">{error.message}</p>
   {/await}
 {/if}
 
-{#if stage===3}
-  {#await dataFetch}
+{#if shooterStageFetch}
+  {#await shooterStageFetch}
     <p>...формирую данные</p>
   {:then data}
-    <table>
-      <tr>
-        <th>Стейдж
-        <th>Место
-        <th>Процент
-        <th>Очки
-      </tr>
-    {#each data as item}
-      <tr>
-        <td>{item.stage}
-        <td>{item.RANK}
-        <td>{item.STAGE_PERCENT}
-        <td>{item.STAGE_POINTS}
-      </tr>
-    {/each}
-     </table>
+    <DataView {viewType} {data} {shooter}/>
   {:catch error}
     <p style="color: red">{error.message}</p>
   {/await}
