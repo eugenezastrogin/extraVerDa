@@ -23,12 +23,23 @@
 
   // Stage incrementer stuff
   let initSubscription = true;
-  const incStage = debounce(getClassByStage, 300);
+  let lastMode = 'combined';
+  const incClassStage = debounce(getClassByStage, 300);
+  const incComboStage = debounce(getCombinedStage, 300);
 
   const unsubscribe = count.subscribe(value => {
     stage = value;
     if (!initSubscription) {
-      incStage();
+      switch (lastMode) {
+        case 'combined':
+          incComboStage();
+          break;
+        case 'class':
+          incClassStage();
+          break;
+        default:
+          incComboStage();
+      }
     } else {
       initSubscription = false;
     }
@@ -80,12 +91,20 @@
   }
 
   function getClassByStage() {
+    lastMode = 'class';
     shooterStageFetch =
       sendRequest(`stages?class=${_class}&stage=${stage}&e=${encodeURIComponent(competition_link)}`);
     viewType = 'stageView';
   }
 
-  function getOverall() {
+  function getCombinedStage() {
+    lastMode = 'combined';
+    shooterStageFetch =
+      sendRequest(`stages?class=overall&stage=${stage}&e=${encodeURIComponent(competition_link)}`);
+    viewType = 'stageView';
+  }
+
+  function getClassOverall() {
   }
 
   function getCombinedOverall() {
@@ -101,7 +120,11 @@
     }
 l }
 
-  function addMatch() {
+  function setMatch() {
+    _class = undefined;
+    shooter = undefined;
+    shooterStageFetch = undefined;
+    specificsFetch = undefined;
     verificationPush =
       sendRequest(`match?e=${encodeURIComponent(verificationPage)}`)
       .then(res => {
@@ -126,7 +149,7 @@ l }
   }
 </style>
 
-<form on:submit|preventDefault={addMatch}>
+<form on:submit|preventDefault={setMatch}>
   <h2>
     {extractEventName(competition_link)}
     <br>
@@ -149,24 +172,24 @@ l }
 
 <hr>
 
-<button on:click={getOverall}>
-  Overall
+<button disabled={_class===undefined} on:click={getClassOverall}>
+  {_class || 'Class'} Overall
 </button>
 
 <button disabled={_class===undefined} on:click={getClassByStage}>
   {_class || 'Class'} by stage
 </button>
 
-<button disabled={shooter===undefined} on:click={getShooterByStage}>
-  Shooter by stage
-</button>
-
 <button on:click={getCombinedOverall}>
   Combined Overall
 </button>
 
-<button on:click={getCombinedOverall}>
+<button on:click={getCombinedStage}>
   Combined by stage
+</button>
+
+<button disabled={shooter===undefined} on:click={getShooterByStage}>
+  Shooter by stage
 </button>
 
 <hr>
@@ -179,7 +202,7 @@ l }
   {shooter ? shooter.split(' ').splice(1).join(' ') : shooter || 'Выбрать стрелка'}
 </button>
 
-<span hidden={_class===undefined}>
+<span>
   <button on:click={count.increment}>+</button>
     {stage} stage
   <button on:click={count.decrement}>-</button>

@@ -65,7 +65,11 @@ app.get('/stages', function(req, res) {
     const comp_num = req.query.n;
     const comp_class = req.query.class;
     const comp_stage = req.query.stage;
-    if (comp_class) {
+    if (comp_class === 'overall') {
+      mr.stages_combined(comp_stage).then(data => {
+        res.status(200).send(data);
+      }).catch(e => console.log(e));
+    } else if (comp_class) {
       mr.stages_by_class(comp_class, comp_stage).then(data => {
         res.status(200).send(data);
       }).catch(e => console.log(e));

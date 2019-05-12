@@ -221,10 +221,51 @@ function stages_by_class(comp_class, stage) {
   });
 }
 
+function stages_combined(stage) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      WITH stage_points_tb AS (
+          SELECT *,
+              (hf / MAX(hf) OVER (PARTITION BY stage, match_id)) *
+              MAX(raw_points) OVER (PARTITION BY stage, match_id) AS stage_points
+          FROM data
+      ), stage_result AS (
+          SELECT stage,
+                 competitor_name,
+                 time,
+                 ROUND(stage_points, 1) AS STAGE_POINTS,
+                 ROUND(
+                     (stage_points /
+                     MAX(raw_points) OVER (PARTITION BY stage, match_id)) * 100,
+                     2
+                 ) AS STAGE_PERCENT,
+                 ROW_NUMBER() OVER (PARTITION BY stage ORDER BY stage_points DESC) AS RANK
+          FROM stage_points_tb
+          ORDER BY stage, stage_points DESC
+      )
+      SELECT RANK, time, STAGE_POINTS, STAGE_PERCENT, competitor_name FROM stage_result
+      ` +
+      'WHERE stage=?' +
+      'ORDER BY RANK',
+      stage,
+      function(err, rows) {
+        if (err) {
+          console.log(err);
+          reject(err);
+        }
+        const extractStages = rows;
+        resolve(extractStages);
+      }
+    )
+  });
+}
+
 module.exports = {
   getBody,
   classes,
   competitors,
   stages_by_competitor,
   stages_by_class,
+  stages_combined,
 };
