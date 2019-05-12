@@ -48,14 +48,15 @@
     _class = undefined;
     shooter = undefined;
     shooterStageFetch = undefined;
-    specificsFetch = sendRequest(`classes?e=${competition_link}`);
+    specificsFetch =
+      sendRequest(`classes?e=${encodeURIComponent(competition_link)}`);
   }
 
   function handleChooseShooter() {
     shooter = undefined;
     shooterStageFetch = undefined;
     specificsFetch =
-      sendRequest(`competitors?class=${_class}&e=${competition_link}`);
+      sendRequest(`competitors?class=${_class}&e=${encodeURIComponent(competition_link)}`);
   }
 
   function handleClickClass(e) {
@@ -71,13 +72,14 @@
   }
 
   function getShooterByStage() {
-    shooterStageFetch = sendRequest(`stages?n=${num}&e=${competition_link}`);
+    shooterStageFetch =
+      sendRequest(`stages?n=${num}&e=${encodeURIComponent(competition_link)}`);
     viewType = 'shooterView';
   }
 
   function getClassByStage() {
     shooterStageFetch =
-      sendRequest(`stages?class=${_class}&stage=${stage}&e=${competition_link}`);
+      sendRequest(`stages?class=${_class}&stage=${stage}&e=${encodeURIComponent(competition_link)}`);
     viewType = 'stageView';
   }
 
@@ -100,7 +102,7 @@ l }
   function addMatch() {
     competition_link = verificationPage;
     localStorage.setItem('competition_link', competition_link);
-    sendRequest('match?v=' + encodeURIComponent(competition_link));
+    sendRequest(`match?e=${encodeURIComponent(competition_link)}`);
   }
 
 </script>
