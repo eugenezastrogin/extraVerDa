@@ -19,8 +19,8 @@
     "start:dev": "sirv public --dev"
   },
   "description": "Verificaion parser",
-  "main": "rollup.config.js",
-  "author": "",
+  "browser": "public/bundle.js",
+  "author": "aethelz",
   "private": "true",
   "license": "MIT",
   "dependencies": {

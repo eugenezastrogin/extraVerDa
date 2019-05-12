@@ -68,6 +68,9 @@ function dbinit(address, html) {
 }
 
 async function getBody(address, online=true) {
+  const rg = /m.+dy\.ru\/.+results\/.+\/\?mode=verif.+/;
+  if (!rg.test(address)) return Promise.reject('bl');
+
   if (!getBody.cache) {
     getBody.cache = {};
   }
@@ -76,11 +79,11 @@ async function getBody(address, online=true) {
     getBody.cache[address] &&
     ((Date.now() - getBody.cache[address]) < 600000)
   ) {
-    console.log('MEMOIZATION SUCCESS!');
     return Promise.resolve();
   } else {
     getBody.cache[address] = Date.now();
   }
+  console.log('Fetching anew: ', address);
 
   let body;
   if (online) {

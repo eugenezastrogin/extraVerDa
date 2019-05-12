@@ -29,8 +29,14 @@ app.get('/match', function(req, res) {
   const verification = req.query.e;
   if (verification) {
     mr.getBody(verification, mode_online).then(() => {
-      res.status(200).send('ok');
-    }).catch(e => console.log(e));
+      res.status(200).send(JSON.stringify({ ok: true }));
+    }).catch(e => {
+      if (e === 'bl') {
+        res.status(412).send();
+      } else {
+        console.log(e);
+      }
+    });
   }
 });
 
@@ -40,7 +46,7 @@ app.get('/classes', function(req, res) {
     mr.classes().then(data => {
       res.status(200).send(data);
     }).catch(e => console.log(e));
-  });
+  }).catch(e => console.log(e));
 });
 
 app.get('/competitors', function(req, res) {
@@ -50,7 +56,7 @@ app.get('/competitors', function(req, res) {
     mr.competitors(comp_class).then(data => {
       res.status(200).send(data);
     }).catch(e => console.log(e));
-  });
+  }).catch(e => console.log(e));
 });
 
 app.get('/stages', function(req, res) {
@@ -62,11 +68,11 @@ app.get('/stages', function(req, res) {
     if (comp_class) {
       mr.stages_by_class(comp_class, comp_stage).then(data => {
         res.status(200).send(data);
-      });
+      }).catch(e => console.log(e));
     } else if (comp_num) {
       mr.stages_by_competitor(comp_num).then(data => {
         res.status(200).send(data);
-      });
+      }).catch(e => console.log(e));
     }
   }).catch(e => console.log(e));
 });

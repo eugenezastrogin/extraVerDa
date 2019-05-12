@@ -6,6 +6,7 @@
   // Promises
   let specificsFetch;
   let shooterStageFetch;
+  let verificationPush;
 
   // Generic parameters
   let verificationPage = '';
@@ -35,12 +36,13 @@
 
   async function sendRequest(req) {
     const res = await fetch(req);
-    const json = await res.json();
 
     if (res.ok) {
-      return json;
+      return res.json();
+    } else if (res.status === 412) {
+      throw new Error('Bad Link!');
     } else {
-      throw new Error(json);
+      throw new Error();
     }
   }
 
@@ -100,9 +102,15 @@
 l }
 
   function addMatch() {
-    competition_link = verificationPage;
-    localStorage.setItem('competition_link', competition_link);
-    sendRequest(`match?e=${encodeURIComponent(competition_link)}`);
+    verificationPush =
+      sendRequest(`match?e=${encodeURIComponent(verificationPage)}`)
+      .then(res => {
+        // Only save if verified by server!
+        if (res.status !== 412) {
+          competition_link = verificationPage;
+          localStorage.setItem('competition_link', competition_link);
+        }
+      });
   }
 
 </script>
@@ -111,11 +119,25 @@ l }
   span {
     white-space:nowrap;
   }
+  .smallfont {
+    margin: 2em auto;
+    color: grey;
+    font-size: .7em;
+  }
 </style>
 
 <form on:submit|preventDefault={addMatch}>
   <h2>
-    {extractEventName(competition_link) || 'Название матча'}
+    {extractEventName(competition_link)}
+    <br>
+    {#if verificationPush}
+      {#await verificationPush}
+        ...
+      {:then}
+      {:catch error}
+        <p style="color: red">{error.message}</p>
+      {/await}
+    {/if}
   </h2>
 
   <input bind:value={verificationPage} placeholder="Ссылка на верификацию">
@@ -188,3 +210,9 @@ l }
     <p style="color: red">{error.message}</p>
   {/await}
 {/if}
+
+<div class="smallfont" align="center">
+  eмаil: testerowtes at яндekс cом
+  <br>
+  2019 ©aethelz
+</div>
