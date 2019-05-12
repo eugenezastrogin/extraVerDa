@@ -1,3 +1,5 @@
+'use strict';
+
 const fsPromises = require('fs').promises;
 const path = require('path');
 const fetch = require('node-fetch');
@@ -6,60 +8,83 @@ const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database(':memory:');
 const tabletojson = require('tabletojson');
 
-const getBody = async (address, online=true) => {
-  function dbinit(html) {
-    return new Promise((resolve, reject) => {
-      const converted = tabletojson.convert(html);
+function extractEventName(address) {
+  const rg = /results\/(.*)\/\?mode/i;
+  const event_name = address.match(rg);
+  if (event_name && event_name[1]) {
+    return event_name[1];
+  } else {
+    return '';
+  }
+}
 
-      const headerRegEx = /<H3>([\s\S]*)<\/H3>/i;
-      const event_name = html.match(headerRegEx)[1];
-      // Turn into arrays from array-like object
-      const raw_data = converted
-        .filter(x => x.length > 1)
-        .map(y => y.map(z => Object.values(z)));
+function dbinit(address, html) {
+  return new Promise((resolve, reject) => {
+    const converted = tabletojson.convert(html);
 
-      db.serialize(function() {
-        const sqlstr = `CREATE TABLE IF NOT EXISTS data (
-                          match_id TEXT
-                        , competitor_name TEXT
-                        , competitor_class TEXT
-                        , competitor_pf TEXT
-                        , competitor_cat TEXT
-                        , stage INTEGER
-                        , hf REAL
-                        , raw_points INTEGER
-                        , time REAL
-                        , last_modified TEXT
-                        , UNIQUE(match_id, stage, competitor_name)
-                    );`;
-        db.run(sqlstr);
-        const stmt = db.prepare(
-          'INSERT OR IGNORE INTO data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        );
-        raw_data.forEach(comp => {
-          let comp_name = comp[0][1].replace(/\u00a0/g, ' ').split(' ');
-          comp_name.pop()
-          comp_name = comp_name.join(' ');
-          const comp_cats = comp[0][2].split(' / ');
-          comp.slice(3).forEach(r => stmt.run(
-            event_name,
-            comp_name,
-            ...comp_cats,
-            r[0],
-            r[1],
-            r[2],
-            r[10],
-            r[11]
-          ));
-        });
-        stmt.finalize(resolve);
+    // Turn into arrays from array-like object
+    const raw_data = converted
+      .filter(x => x.length > 1)
+      .map(y => y.map(z => Object.values(z)));
+
+    db.serialize(function() {
+      const sqlstr = `CREATE TABLE IF NOT EXISTS data (
+                        match_id TEXT
+                      , competitor_name TEXT
+                      , competitor_class TEXT
+                      , competitor_pf TEXT
+                      , competitor_cat TEXT
+                      , stage INTEGER
+                      , hf REAL
+                      , raw_points INTEGER
+                      , time REAL
+                      , last_modified TEXT
+                      , UNIQUE(match_id, stage, competitor_name)
+                  );`;
+      db.run(sqlstr);
+      const stmt = db.prepare(
+        'INSERT OR REPLACE INTO data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      );
+      raw_data.forEach(comp => {
+        // Remove nbsp and Country code
+        const comp_name = comp[0][1]
+          .replace(/\u00a0/g, ' ')
+          .replace(/ +[a-zA-Z]{3}$/g, '')
+        const comp_cats = comp[0][2].split(' / ');
+        comp.slice(3).forEach(r => stmt.run(
+          extractEventName(address),
+          comp_name,
+          ...comp_cats,
+          r[0],
+          r[1],
+          r[2],
+          r[10],
+          r[11]
+        ));
       });
-    })
+      stmt.finalize(resolve);
+    });
+  })
+}
+
+async function getBody(address, online=true) {
+  if (!getBody.cache) {
+    getBody.cache = {};
+  }
+  // Memoize for 10 minutes before refetching
+  if (
+    getBody.cache[address] &&
+    ((Date.now() - getBody.cache[address]) < 600000)
+  ) {
+    console.log('MEMOIZATION SUCCESS!');
+    return Promise.resolve();
+  } else {
+    getBody.cache[address] = Date.now();
   }
 
   let body;
   if (online) {
-    html = fetch(
+    const html = fetch(
       address,
       { headers: { 'User-Agent': 'Mozilla/5.0' } }
     );
@@ -74,7 +99,7 @@ const getBody = async (address, online=true) => {
     );
   }
 
-  return dbinit(body);
+  return dbinit(address, body);
 };
 
 function classes() {
@@ -145,7 +170,6 @@ function stages_by_competitor(competitor) {
           console.log(err);
           reject(err);
         }
-        console.log(rows);
         const extractStages = rows;
         resolve(extractStages);
       }

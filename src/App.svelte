@@ -1,23 +1,36 @@
 <script>
+  import debounce from 'lodash.debounce';
   import { count } from './stores.js';
-  import Incrementer from './Incrementer.svelte';
-  import Decrementer from './Decrementer.svelte';
   import DataView from './DataView.svelte';
 
+  // Promises
   let specificsFetch;
   let shooterStageFetch;
-  let viewType;
+
+  // Generic parameters
+  let verificationPage = '';
+  let competition_link = '';
+  if (localStorage.getItem('competition_link')) {
+    competition_link = localStorage.getItem('competition_link');
+  }
 
   let _class;
   let shooter;
   let num;
   let stage;
+  let viewType;
+
+  // Stage incrementer stuff
   let initSubscription = true;
+  const incStage = debounce(getClassByStage, 300);
 
   const unsubscribe = count.subscribe(value => {
     stage = value;
-    initSubscription ? '' : getClassByStage();
-    initSubscription = false;
+    if (!initSubscription) {
+      incStage();
+    } else {
+      initSubscription = false;
+    }
   });
 
   async function sendRequest(req) {
@@ -34,16 +47,15 @@
   function handleChooseClass() {
     _class = undefined;
     shooter = undefined;
-    specificsFetch = sendRequest('classes');
+    shooterStageFetch = undefined;
+    specificsFetch = sendRequest(`classes?e=${competition_link}`);
   }
 
   function handleChooseShooter() {
     shooter = undefined;
-    specificsFetch = sendRequest('competitors?class=' + _class);
-  }
-
-  function handleChooseStage() {
-    stage = undefined;
+    shooterStageFetch = undefined;
+    specificsFetch =
+      sendRequest(`competitors?class=${_class}&e=${competition_link}`);
   }
 
   function handleClickClass(e) {
@@ -59,12 +71,13 @@
   }
 
   function getShooterByStage() {
-    shooterStageFetch = sendRequest('stages?n=' + num);
+    shooterStageFetch = sendRequest(`stages?n=${num}&e=${competition_link}`);
     viewType = 'shooterView';
   }
 
   function getClassByStage() {
-    shooterStageFetch = sendRequest(`stages?class=${_class}&stage=${stage}`);
+    shooterStageFetch =
+      sendRequest(`stages?class=${_class}&stage=${stage}&e=${competition_link}`);
     viewType = 'stageView';
   }
 
@@ -74,13 +87,43 @@
   function getCombinedOverall() {
   }
 
+  function extractEventName(address) {
+    const rg = /results\/(.*)\/\?mode/i;
+    const event_name = address.match(rg);
+    if (event_name && event_name[1]) {
+      return event_name[1];
+    } else {
+      return '';
+    }
+l }
+
+  function addMatch() {
+    competition_link = verificationPage;
+    localStorage.setItem('competition_link', competition_link);
+    sendRequest('match?v=' + encodeURIComponent(competition_link));
+  }
+
 </script>
 
 <style>
-  #stage {
-    width: 2em;
+  span {
+    white-space:nowrap;
   }
 </style>
+
+<form on:submit|preventDefault={addMatch}>
+  <h2>
+    {extractEventName(competition_link) || 'Название матча'}
+  </h2>
+
+  <input bind:value={verificationPage} placeholder="Ссылка на верификацию">
+
+  <button disabled={!verificationPage} type=submit>
+    Отправить
+  </button>
+</form>
+
+<hr>
 
 <button on:click={getOverall}>
   Overall
@@ -102,7 +145,7 @@
   Combined by stage
 </button>
 
-<hr/>
+<hr>
 
 <button on:click={handleChooseClass}>
   {_class || 'Выбрать класс'}
@@ -113,12 +156,12 @@
 </button>
 
 <span hidden={_class===undefined}>
-  <Incrementer/>
+  <button on:click={count.increment}>+</button>
     {stage} stage
-  <Decrementer/>
+  <button on:click={count.decrement}>-</button>
 </span>
 
-<br/>
+<br>
 
 {#if specificsFetch}
   {#await specificsFetch}
@@ -127,7 +170,7 @@
     {#each data as item}
       <button on:click={_class ? handleClickShooter : handleClickClass}>
         {item}
-      </button><br/>
+      </button><br>
     {/each}
   {:catch error}
     <p style="color: red">{error.message}</p>
