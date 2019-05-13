@@ -27,6 +27,7 @@ app.use(express.static('../public'))
 
 app.get('/match', function(req, res) {
   const verification = req.query.e;
+
   if (verification) {
     mr.getBody(verification, mode_online).then(() => {
       res.status(200).send(JSON.stringify({ ok: true }));
@@ -42,8 +43,9 @@ app.get('/match', function(req, res) {
 
 app.get('/classes', function(req, res) {
   const verification = req.query.e;
-  mr.getBody(verification, mode_online).then(() => {
-    mr.classes().then(data => {
+
+  mr.getBody(verification, mode_online).then(match => {
+    mr.classes(match).then(data => {
       res.status(200).send(data);
     }).catch(e => console.log(e));
   }).catch(e => console.log(e));
@@ -51,9 +53,10 @@ app.get('/classes', function(req, res) {
 
 app.get('/competitors', function(req, res) {
   const verification = req.query.e;
-  mr.getBody(verification, mode_online).then(() => {
-    const comp_class = req.query.class;
-    mr.competitors(comp_class).then(data => {
+  const comp_class = req.query.class;
+
+  mr.getBody(verification, mode_online).then(match => {
+    mr.competitors(match, comp_class).then(data => {
       res.status(200).send(data);
     }).catch(e => console.log(e));
   }).catch(e => console.log(e));
@@ -61,22 +64,42 @@ app.get('/competitors', function(req, res) {
 
 app.get('/stages', function(req, res) {
   const verification = req.query.e;
-  mr.getBody(verification, mode_online).then(() => {
-    const comp_num = req.query.n;
-    const comp_class = req.query.class;
-    const comp_stage = req.query.stage;
+  const comp_num = req.query.n;
+  const comp_class = req.query.class;
+  const comp_stage = req.query.stage;
+
+  mr.getBody(verification, mode_online).then(match => {
     if (comp_class === 'overall') {
-      mr.stages_combined(comp_stage).then(data => {
+      mr.stages_combined(match, comp_stage).then(data => {
         res.status(200).send(data);
       }).catch(e => console.log(e));
     } else if (comp_class) {
-      mr.stages_by_class(comp_class, comp_stage).then(data => {
+      mr.stages_by_class(match, comp_class, comp_stage).then(data => {
         res.status(200).send(data);
       }).catch(e => console.log(e));
     } else if (comp_num) {
-      mr.stages_by_competitor(comp_num).then(data => {
+      mr.stages_by_competitor(match, comp_num).then(data => {
         res.status(200).send(data);
       }).catch(e => console.log(e));
+    }
+  }).catch(e => console.log(e));
+});
+
+app.get('/overall', function(req, res) {
+  const verification = req.query.e;
+  const comp_class = req.query.class;
+  const type = req.query.type;
+
+  mr.getBody(verification, mode_online).then(match => {
+    if (comp_class === 'combined') {
+      mr.combined_overall(match).then(data => {
+        res.status(200).send(data);
+      }).catch(e => console.log(e));
+    } else if (comp_class) {
+      mr.class_overall(match, comp_class).then(data => {
+        res.status(200).send(data);
+      }).catch(e => console.log(e));
+    } else {
     }
   }).catch(e => console.log(e));
 });

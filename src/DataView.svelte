@@ -28,9 +28,9 @@
   <tr style={item.competitor_name==shooter ? 'background-color:#f1135a6b': ''}>
     <td>{item.RANK}
     <td>{item.competitor_name.split(' ').splice(1).join(' ')}
-    <td>{item.STAGE_PERCENT}
+    <td>{item.percent}
     <td>{item.time}
-    <td>{item.STAGE_POINTS}
+    <td>{item.points}
   </tr>
 {/each}
 </table>
@@ -48,8 +48,8 @@
   <tr>
     <td>{item.stage}
     <td>{item.RANK}
-    <td>{item.STAGE_PERCENT}
-    <td>{item.STAGE_POINTS}
+    <td>{item.percent}
+    <td>{item.points}
   </tr>
 {/each}
 </table>

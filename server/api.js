@@ -18,7 +18,7 @@ function extractEventName(address) {
   }
 }
 
-function dbinit(address, html) {
+function dbinit(match, html) {
   return new Promise((resolve, reject) => {
     const converted = tabletojson.convert(html);
 
@@ -49,10 +49,10 @@ function dbinit(address, html) {
         // Remove nbsp and Country code
         const comp_name = comp[0][1]
           .replace(/\u00a0/g, ' ')
-          .replace(/ +[a-zA-Z]{3}$/g, '')
+          .replace(/ +[a-zA-Z]{3}($| \[DQ\])/g, '');
         const comp_cats = comp[0][2].split(' / ');
         comp.slice(3).forEach(r => stmt.run(
-          extractEventName(address),
+          match,
           comp_name,
           ...comp_cats,
           r[0],
@@ -62,7 +62,7 @@ function dbinit(address, html) {
           r[11]
         ));
       });
-      stmt.finalize(resolve);
+      stmt.finalize(() => resolve(match));
     });
   })
 }
@@ -79,7 +79,7 @@ async function getBody(address, online=true) {
     getBody.cache[address] &&
     ((Date.now() - getBody.cache[address]) < 600000)
   ) {
-    return Promise.resolve();
+    return Promise.resolve(extractEventName(address));
   } else {
     getBody.cache[address] = Date.now();
   }
@@ -102,13 +102,14 @@ async function getBody(address, online=true) {
     );
   }
 
-  return dbinit(address, body);
+  return dbinit(extractEventName(address), body);
 };
 
-function classes() {
+function classes(match) {
   return new Promise((resolve, reject) => {
     db.all(
-      'SELECT DISTINCT competitor_class FROM data',
+      'SELECT DISTINCT competitor_class FROM data WHERE match_id=?',
+      match,
       (err, rows) => {
         if (err) {
           console.log(err);
@@ -121,12 +122,13 @@ function classes() {
   });
 }
 
-function competitors(comp_class) {
+function competitors(match, comp_class) {
   return new Promise((resolve, reject) => {
     let competitors = [];
     db.each(
-      'SELECT DISTINCT competitor_name FROM data WHERE competitor_class=?',
-      comp_class,
+      'SELECT DISTINCT competitor_name FROM data' +
+      'WHERE match_id=? AND competitor_class=?',
+      match, comp_class,
 
       (err, rows) => {
         if (err) {
@@ -141,7 +143,7 @@ function competitors(comp_class) {
   });
 }
 
-function stages_by_competitor(competitor) {
+function stages_by_competitor(match, competitor) {
   return new Promise((resolve, reject) => {
     db.all(
       `
@@ -164,10 +166,10 @@ function stages_by_competitor(competitor) {
           FROM stage_points_tb
           ORDER BY stage, stage_points DESC
       )
-      SELECT stage, RANK, STAGE_PERCENT, STAGE_POINTS FROM stage_result
+      SELECT stage, RANK, STAGE_PERCENT as percent, STAGE_POINTS as points FROM stage_result
       ` +
-      "WHERE competitor_name LIKE '#' || ? || ' %'",
-      competitor,
+      "WHERE match_id=? AND competitor_name LIKE '#' || ? || ' %'",
+      match, competitor,
       function(err, rows) {
         if (err) {
           console.log(err);
@@ -180,7 +182,7 @@ function stages_by_competitor(competitor) {
   })
 }
 
-function stages_by_class(comp_class, stage) {
+function class_overall(match, comp_class) {
   return new Promise((resolve, reject) => {
     db.all(
       `
@@ -189,26 +191,30 @@ function stages_by_class(comp_class, stage) {
               (hf / MAX(hf) OVER (PARTITION BY stage, match_id, competitor_class)) *
               MAX(raw_points) OVER (PARTITION BY stage, match_id, competitor_class) AS stage_points
           FROM data
-      ), stage_result AS (
-          SELECT stage,
+      ), competitor_points AS (
+          SELECT match_id,
                  competitor_class,
                  competitor_name,
-                 time,
-                 ROUND(stage_points, 1) AS STAGE_POINTS,
-                 ROUND(
-                     (stage_points /
-                     MAX(raw_points) OVER (PARTITION BY stage, match_id, competitor_class)) * 100,
-                     2
-                 ) AS STAGE_PERCENT,
-                 ROW_NUMBER() OVER (PARTITION BY stage, competitor_class ORDER BY stage_points DESC) AS RANK
+                 SUM(stage_points) as competitor_points
           FROM stage_points_tb
-          ORDER BY stage, stage_points DESC
-      )
-      SELECT RANK, time, STAGE_POINTS, STAGE_PERCENT, competitor_name FROM stage_result
+          GROUP BY match_id, competitor_class, competitor_name
+      ), winner_points AS (
+          SELECT *,
+                 MAX(competitor_points) OVER (PARTITION by match_id, competitor_class) as winner_points
+          FROM competitor_points
+      ), competitor_percent AS (
+          SELECT *,
+              (competitor_points / winner_points) * 100 AS competitor_percent
+          FROM winner_points
+      ) SELECT *,
+               ROUND(competitor_percent, 2) as percent,
+               ROUND(competitor_points, 2) as points,
+              ROW_NUMBER() OVER (PARTITION BY match_id, competitor_class ORDER BY competitor_percent DESC) AS RANK
+        FROM competitor_percent
       ` +
-      'WHERE competitor_class=? AND stage=?' +
+      'WHERE match_id=? AND competitor_class=?' +
       'ORDER BY RANK',
-      comp_class, stage,
+      match, comp_class,
       function(err, rows) {
         if (err) {
           console.log(err);
@@ -221,7 +227,92 @@ function stages_by_class(comp_class, stage) {
   });
 }
 
-function stages_combined(stage) {
+function combined_overall(match) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      WITH stage_points_tb AS (
+          SELECT *,
+              (hf / MAX(hf) OVER (PARTITION BY stage, match_id)) *
+              MAX(raw_points) OVER (PARTITION BY stage, match_id) AS stage_points
+          FROM data
+      ), competitor_points AS (
+          SELECT match_id,
+                 competitor_name,
+                 SUM(stage_points) as competitor_points
+          FROM stage_points_tb
+          GROUP BY match_id, competitor_name
+      ), winner_points AS (
+          SELECT *,
+                 MAX(competitor_points) OVER (PARTITION by match_id) as winner_points
+          FROM competitor_points
+      ), competitor_percent AS (
+          SELECT *,
+              (competitor_points / winner_points) * 100 AS competitor_percent
+          FROM winner_points
+      ) SELECT *,
+               ROUND(competitor_percent, 2) as percent,
+               ROUND(competitor_points, 2) as points,
+              ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY competitor_percent DESC) AS RANK
+        FROM competitor_percent
+      ` +
+      'WHERE match_id=?' +
+      'ORDER BY RANK',
+      match,
+      function(err, rows) {
+        if (err) {
+          console.log(err);
+          reject(err);
+        }
+        const extractStages = rows;
+        resolve(extractStages);
+      }
+    )
+  });
+}
+
+function stages_by_class(match, comp_class, stage) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      WITH stage_points_tb AS (
+          SELECT *,
+              (hf / MAX(hf) OVER (PARTITION BY stage, match_id, competitor_class)) *
+              MAX(raw_points) OVER (PARTITION BY stage, match_id, competitor_class) AS stage_points
+          FROM data
+      ), stage_result AS (
+          SELECT stage,
+                 match_id,
+                 competitor_class,
+                 competitor_name,
+                 time,
+                 ROUND(stage_points, 1) AS STAGE_POINTS,
+                 ROUND(
+                     (stage_points /
+                     MAX(raw_points) OVER (PARTITION BY stage, match_id, competitor_class)) * 100,
+                     2
+                 ) AS STAGE_PERCENT,
+                 ROW_NUMBER() OVER (PARTITION BY match_id, stage, competitor_class ORDER BY stage_points DESC) AS RANK
+          FROM stage_points_tb
+      )
+      SELECT match_id, RANK, time, STAGE_POINTS as points, STAGE_PERCENT as percent, competitor_name FROM stage_result
+      ` +
+      'WHERE match_id=? AND competitor_class=? AND stage=?' +
+      'ORDER BY RANK',
+      match, comp_class, stage,
+      function(err, rows) {
+        if (err) {
+          console.log(err);
+          reject(err);
+        }
+        const extractStages = rows;
+        resolve(extractStages);
+      }
+    )
+  });
+}
+
+function stages_combined(match, stage) {
   return new Promise((resolve, reject) => {
     db.all(
       `
@@ -232,6 +323,7 @@ function stages_combined(stage) {
           FROM data
       ), stage_result AS (
           SELECT stage,
+                 match_id,
                  competitor_name,
                  time,
                  ROUND(stage_points, 1) AS STAGE_POINTS,
@@ -242,13 +334,12 @@ function stages_combined(stage) {
                  ) AS STAGE_PERCENT,
                  ROW_NUMBER() OVER (PARTITION BY stage ORDER BY stage_points DESC) AS RANK
           FROM stage_points_tb
-          ORDER BY stage, stage_points DESC
       )
-      SELECT RANK, time, STAGE_POINTS, STAGE_PERCENT, competitor_name FROM stage_result
+      SELECT match_id, RANK, time, STAGE_POINTS as points, STAGE_PERCENT as percent, competitor_name FROM stage_result
       ` +
-      'WHERE stage=?' +
+      'WHERE match_id=? AND stage=?' +
       'ORDER BY RANK',
-      stage,
+      match, stage,
       function(err, rows) {
         if (err) {
           console.log(err);
@@ -265,6 +356,8 @@ module.exports = {
   getBody,
   classes,
   competitors,
+  class_overall,
+  combined_overall,
   stages_by_competitor,
   stages_by_class,
   stages_combined,

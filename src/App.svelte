@@ -105,9 +105,15 @@
   }
 
   function getClassOverall() {
+    shooterStageFetch =
+      sendRequest(`overall?class=${_class}&e=${encodeURIComponent(competition_link)}`);
+    viewType = 'stageView';
   }
 
   function getCombinedOverall() {
+    shooterStageFetch =
+      sendRequest(`overall?class=combined&e=${encodeURIComponent(competition_link)}`);
+    viewType = 'stageView';
   }
 
   function extractEventName(address) {
@@ -194,7 +200,7 @@ l }
 
 <hr>
 
-<button on:click={handleChooseClass}>
+<button disabled={competition_link===''} on:click={handleChooseClass}>
   {_class || 'Выбрать класс'}
 </button>
 
