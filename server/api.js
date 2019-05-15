@@ -152,6 +152,7 @@ function stages_by_competitor(match, competitor) {
           FROM data
       ), stage_result AS (
           SELECT stage,
+                 match_id,
                  competitor_class,
                  competitor_name,
                  ROUND(stage_points, 1) AS STAGE_POINTS,
