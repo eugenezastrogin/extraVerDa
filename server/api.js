@@ -124,9 +124,8 @@ function classes(match) {
 
 function competitors(match, comp_class) {
   return new Promise((resolve, reject) => {
-    let competitors = [];
-    db.each(
-      'SELECT DISTINCT competitor_name FROM data' +
+    db.all(
+      'SELECT DISTINCT competitor_name FROM data ' +
       'WHERE match_id=? AND competitor_class=?',
       match, comp_class,
 
@@ -135,10 +134,9 @@ function competitors(match, comp_class) {
           console.log(err);
           reject(err);
         }
-        competitors.push(rows.competitor_name);
+        const extractCompetitors = rows.map(x => x.competitor_name);
+        resolve(extractCompetitors);
       },
-
-      () => resolve(competitors),
     );
   });
 }
