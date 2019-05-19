@@ -107,13 +107,13 @@
   function getClassOverall() {
     shooterStageFetch =
       sendRequest(`overall?class=${_class}&e=${encodeURIComponent(competition_link)}`);
-    viewType = 'stageView';
+    viewType = 'overallView';
   }
 
   function getCombinedOverall() {
     shooterStageFetch =
       sendRequest(`overall?class=combined&e=${encodeURIComponent(competition_link)}`);
-    viewType = 'stageView';
+    viewType = 'overallView';
   }
 
   function extractEventName(address) {

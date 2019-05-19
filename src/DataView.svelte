@@ -14,7 +14,7 @@
   }
 </style>
 
-{#if viewType==='stageView'}
+{#if viewType === 'stageView'}
 
 <table>
   <tr>
@@ -25,7 +25,7 @@
     <th>Points
   </tr>
 {#each data as item}
-  <tr style={item.competitor_name==shooter ? 'background-color:#f1135a6b': ''}>
+  <tr style={item.competitor_name == shooter ? 'background-color:#f1135a6b': ''}>
     <td>{item.RANK}
     <td>{item.competitor_name.split(' ').splice(1).join(' ')}
     <td>{item.percent}
@@ -35,7 +35,7 @@
 {/each}
 </table>
 
-{:else if viewType==='shooterView'}
+{:else if viewType === 'shooterView'}
 
 <table>
   <tr>
@@ -48,6 +48,25 @@
   <tr>
     <td>{item.stage}
     <td>{item.RANK}
+    <td>{item.percent}
+    <td>{item.points}
+  </tr>
+{/each}
+</table>
+
+{:else if viewType === 'overallView'}
+
+<table>
+  <tr>
+    <th>№
+    <th>Competitor
+    <th>%
+    <th>Points
+  </tr>
+{#each data as item}
+  <tr style={item.competitor_name === shooter ? 'background-color:#f1135a6b': ''}>
+    <td>{item.RANK}
+    <td>{item.competitor_name.split(' ').splice(1).join(' ')}
     <td>{item.percent}
     <td>{item.points}
   </tr>
