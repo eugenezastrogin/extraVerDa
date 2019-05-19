@@ -80,7 +80,7 @@ async function getBody(address, online=true) {
   // Memoize for 10 minutes before refetching
   if (
     getBody.cache[address] &&
-    ((Date.now() - getBody.cache[address]) < 600000)
+    ((Date.now() - getBody.cache[address]) < 1200000)
   ) {
     return Promise.resolve(extractEventName(address));
   } else {
@@ -194,7 +194,7 @@ function stages_by_competitor(match, competitor) {
         RANK,
         STAGE_PERCENT as percent,
         STAGE_POINTS as points,
-        hf
+        ROUND(hf, 2) as hf
       FROM
         stage_result
       ` +
@@ -406,7 +406,7 @@ function stages_by_class(match, comp_class, stage) {
         STAGE_POINTS as points,
         STAGE_PERCENT as percent,
         competitor_name,
-        hf
+        ROUND(hf, 2) as hf
       FROM
         stage_result
       ` +
@@ -467,7 +467,7 @@ function stages_combined(match, stage) {
         STAGE_POINTS as points,
         STAGE_PERCENT as percent,
         competitor_name,
-        hf
+        ROUND(hf, 2) as hf
       FROM
         stage_result
       ` +
