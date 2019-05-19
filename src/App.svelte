@@ -153,10 +153,13 @@ l }
     color: grey;
     font-size: .7em;
   }
+  .ph {
+    min-height: 500px;
+  }
 </style>
 
 <form on:submit|preventDefault={setMatch}>
-  <h2>
+  <h3>
     {extractEventName(competition_link)}
     <br>
     {#if verificationPush}
@@ -167,7 +170,7 @@ l }
         <p style="color: red">{error.message}</p>
       {/await}
     {/if}
-  </h2>
+  </h3>
 
   <input bind:value={verificationPage} placeholder="Ссылка на верификацию">
 
@@ -219,6 +222,7 @@ l }
 {#if specificsFetch}
   {#await specificsFetch}
     <p>...запрашиваю</p>
+    <div class="ph"></div>
   {:then data}
     {#each data as item}
       <button on:click={_class ? handleClickShooter : handleClickClass}>
@@ -233,6 +237,7 @@ l }
 {#if shooterStageFetch}
   {#await shooterStageFetch}
     <p>...формирую данные</p>
+    <div class="ph"></div>
   {:then data}
     <DataView {viewType} {data} {shooter}/>
   {:catch error}

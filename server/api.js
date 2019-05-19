@@ -77,10 +77,10 @@ async function getBody(address, online=true) {
   if (!getBody.cache) {
     getBody.cache = {};
   }
-  // Memoize for 10 minutes before refetching
+  // Memoize for 15 minutes before refetching
   if (
     getBody.cache[address] &&
-    ((Date.now() - getBody.cache[address]) < 1200000)
+    ((Date.now() - getBody.cache[address]) < 900000)
   ) {
     return Promise.resolve(extractEventName(address));
   } else {
