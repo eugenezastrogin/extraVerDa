@@ -453,7 +453,8 @@ function stages_combined(match, stage) {
             2
           ) AS STAGE_PERCENT,
           ROW_NUMBER() OVER (
-            PARTITION BY stage
+            PARTITION BY stage,
+            match_id
             ORDER BY
               stage_points DESC
           ) AS RANK,
