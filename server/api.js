@@ -28,19 +28,22 @@ function dbinit(match, html) {
       .map(y => y.map(z => Object.values(z)));
 
     db.serialize(function() {
-      const sqlstr = `CREATE TABLE IF NOT EXISTS data (
-                        match_id TEXT
-                      , competitor_name TEXT
-                      , competitor_class TEXT
-                      , competitor_pf TEXT
-                      , competitor_cat TEXT
-                      , stage INTEGER
-                      , hf REAL
-                      , raw_points INTEGER
-                      , time REAL
-                      , last_modified TEXT
-                      , UNIQUE(match_id, stage, competitor_name)
-                  );`;
+      const sqlstr =
+      `
+      CREATE TABLE IF NOT EXISTS data (
+        match_id TEXT,
+        competitor_name TEXT,
+        competitor_class TEXT,
+        competitor_pf TEXT,
+        competitor_cat TEXT,
+        stage INTEGER,
+        hf REAL,
+        raw_points INTEGER,
+        time REAL,
+        last_modified TEXT,
+        UNIQUE(match_id, stage, competitor_name)
+      );
+      `;
       db.run(sqlstr);
       const stmt = db.prepare(
         'INSERT OR REPLACE INTO data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -146,32 +149,54 @@ function stages_by_competitor(match, competitor) {
     db.all(
       `
       WITH stage_points_tb AS (
-          SELECT *,
-                 (hf / MAX(hf) OVER (PARTITION BY stage, match_id, competitor_class)) *
-                 MAX(raw_points) OVER (PARTITION BY stage, match_id, competitor_class) AS stage_points
-          FROM data
-      ), stage_result AS (
-          SELECT stage,
-                 match_id,
-                 competitor_class,
-                 competitor_name,
-                 ROUND(stage_points, 1) AS STAGE_POINTS,
-                 ROUND(
-                     (stage_points /
-                     MAX(raw_points) OVER (PARTITION BY stage, match_id, competitor_class)) * 100,
-                     2
-                 ) AS STAGE_PERCENT,
-                 ROW_NUMBER() OVER (PARTITION BY stage, competitor_class ORDER BY stage_points DESC) AS RANK,
-                 hf
-          FROM stage_points_tb
-          ORDER BY stage, stage_points DESC
+        SELECT
+          *,
+          (
+            hf / MAX(hf) OVER (
+              PARTITION BY stage, match_id, competitor_class
+            )
+          ) * MAX(raw_points) OVER (
+            PARTITION BY stage, match_id, competitor_class
+          ) AS stage_points
+        FROM
+          data
+      ),
+      stage_result AS (
+        SELECT
+          stage,
+          match_id,
+          competitor_class,
+          competitor_name,
+          ROUND(stage_points, 1) AS STAGE_POINTS,
+          ROUND(
+            (
+              stage_points / MAX(raw_points) OVER (
+                PARTITION BY stage, match_id, competitor_class
+              )
+            ) * 100,
+            2
+          ) AS STAGE_PERCENT,
+          ROW_NUMBER() OVER (
+            PARTITION BY stage,
+            competitor_class
+            ORDER BY
+              stage_points DESC
+          ) AS RANK,
+          hf
+        FROM
+          stage_points_tb
+        ORDER BY
+          stage,
+          stage_points DESC
       )
-      SELECT stage,
-             RANK,
-             STAGE_PERCENT as percent,
-             STAGE_POINTS as points,
-             hf
-      FROM stage_result
+      SELECT
+        stage,
+        RANK,
+        STAGE_PERCENT as percent,
+        STAGE_POINTS as points,
+        hf
+      FROM
+        stage_result
       ` +
       "WHERE match_id=? AND competitor_name LIKE '#' || ? || ' %'",
       match, competitor,
@@ -192,30 +217,61 @@ function class_overall(match, comp_class) {
     db.all(
       `
       WITH stage_points_tb AS (
-          SELECT *,
-              (hf / MAX(hf) OVER (PARTITION BY stage, match_id, competitor_class)) *
-              MAX(raw_points) OVER (PARTITION BY stage, match_id, competitor_class) AS stage_points
-          FROM data
-      ), competitor_points AS (
-          SELECT match_id,
-                 competitor_class,
-                 competitor_name,
-                 SUM(stage_points) as competitor_points
-          FROM stage_points_tb
-          GROUP BY match_id, competitor_class, competitor_name
-      ), winner_points AS (
-          SELECT *,
-                 MAX(competitor_points) OVER (PARTITION by match_id, competitor_class) as winner_points
-          FROM competitor_points
-      ), competitor_percent AS (
-          SELECT *,
-                 (competitor_points / winner_points) * 100 AS competitor_percent
-          FROM winner_points
-      ) SELECT *,
-               ROUND(competitor_percent, 2) as percent,
-               ROUND(competitor_points, 2) as points,
-               ROW_NUMBER() OVER (PARTITION BY match_id, competitor_class ORDER BY competitor_percent DESC) AS RANK
-        FROM competitor_percent
+        SELECT
+          *,
+          (
+            hf / MAX(hf) OVER (
+              PARTITION BY stage, match_id, competitor_class
+            )
+          ) * MAX(raw_points) OVER (
+            PARTITION BY stage, match_id, competitor_class
+          ) AS stage_points
+        FROM
+          data
+      ),
+      competitor_points AS (
+        SELECT
+          match_id,
+          competitor_class,
+          competitor_name,
+          SUM(stage_points) as competitor_points
+        FROM
+          stage_points_tb
+        GROUP BY
+          match_id,
+          competitor_class,
+          competitor_name
+      ),
+      winner_points AS (
+        SELECT
+          *,
+          MAX(competitor_points) OVER (
+            PARTITION by match_id, competitor_class
+          ) as winner_points
+        FROM
+          competitor_points
+      ),
+      competitor_percent AS (
+        SELECT
+          *,
+          (
+            competitor_points / winner_points
+          ) * 100 AS competitor_percent
+        FROM
+          winner_points
+      )
+      SELECT
+        *,
+        ROUND(competitor_percent, 2) as percent,
+        ROUND(competitor_points, 2) as points,
+        ROW_NUMBER() OVER (
+          PARTITION BY match_id,
+          competitor_class
+          ORDER BY
+            competitor_percent DESC
+        ) AS RANK
+      FROM
+        competitor_percent
       ` +
       'WHERE match_id=? AND competitor_class=?' +
       'ORDER BY RANK',
@@ -237,29 +293,52 @@ function combined_overall(match) {
     db.all(
       `
       WITH stage_points_tb AS (
-          SELECT *,
-              (hf / MAX(hf) OVER (PARTITION BY stage, match_id)) *
-              MAX(raw_points) OVER (PARTITION BY stage, match_id) AS stage_points
-          FROM data
-      ), competitor_points AS (
-          SELECT match_id,
-                 competitor_name,
-                 SUM(stage_points) as competitor_points
-          FROM stage_points_tb
-          GROUP BY match_id, competitor_name
-      ), winner_points AS (
-          SELECT *,
-                 MAX(competitor_points) OVER (PARTITION by match_id) as winner_points
-          FROM competitor_points
-      ), competitor_percent AS (
-          SELECT *,
-              (competitor_points / winner_points) * 100 AS competitor_percent
-          FROM winner_points
-      ) SELECT *,
-               ROUND(competitor_percent, 2) as percent,
-               ROUND(competitor_points, 2) as points,
-               ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY competitor_percent DESC) AS RANK
-        FROM competitor_percent
+        SELECT
+          *,
+          (
+            hf / MAX(hf) OVER (PARTITION BY stage, match_id)
+          ) * MAX(raw_points) OVER (PARTITION BY stage, match_id) AS stage_points
+        FROM
+          data
+      ),
+      competitor_points AS (
+        SELECT
+          match_id,
+          competitor_name,
+          SUM(stage_points) as competitor_points
+        FROM
+          stage_points_tb
+        GROUP BY
+          match_id,
+          competitor_name
+      ),
+      winner_points AS (
+        SELECT
+          *,
+          MAX(competitor_points) OVER (PARTITION by match_id) as winner_points
+        FROM
+          competitor_points
+      ),
+      competitor_percent AS (
+        SELECT
+          *,
+          (
+            competitor_points / winner_points
+          ) * 100 AS competitor_percent
+        FROM
+          winner_points
+      )
+      SELECT
+        *,
+        ROUND(competitor_percent, 2) as percent,
+        ROUND(competitor_points, 2) as points,
+        ROW_NUMBER() OVER (
+          PARTITION BY match_id
+          ORDER BY
+            competitor_percent DESC
+        ) AS RANK
+      FROM
+        competitor_percent
       ` +
       'WHERE match_id=?' +
       'ORDER BY RANK',
@@ -281,34 +360,55 @@ function stages_by_class(match, comp_class, stage) {
     db.all(
       `
       WITH stage_points_tb AS (
-          SELECT *,
-              (hf / MAX(hf) OVER (PARTITION BY stage, match_id, competitor_class)) *
-              MAX(raw_points) OVER (PARTITION BY stage, match_id, competitor_class) AS stage_points
-          FROM data
-      ), stage_result AS (
-          SELECT stage,
-                 match_id,
-                 competitor_class,
-                 competitor_name,
-                 time,
-                 ROUND(stage_points, 1) AS STAGE_POINTS,
-                 ROUND(
-                     (stage_points /
-                     MAX(raw_points) OVER (PARTITION BY stage, match_id, competitor_class)) * 100,
-                     2
-                 ) AS STAGE_PERCENT,
-                 ROW_NUMBER() OVER (PARTITION BY match_id, stage, competitor_class ORDER BY stage_points DESC) AS RANK,
-                 hf
-          FROM stage_points_tb
+        SELECT
+          *,
+          (
+            hf / MAX(hf) OVER (
+              PARTITION BY stage, match_id, competitor_class
+            )
+          ) * MAX(raw_points) OVER (
+            PARTITION BY stage, match_id, competitor_class
+          ) AS stage_points
+        FROM
+          data
+      ),
+      stage_result AS (
+        SELECT
+          stage,
+          match_id,
+          competitor_class,
+          competitor_name,
+          time,
+          ROUND(stage_points, 1) AS STAGE_POINTS,
+          ROUND(
+            (
+              stage_points / MAX(raw_points) OVER (
+                PARTITION BY stage, match_id, competitor_class
+              )
+            ) * 100,
+            2
+          ) AS STAGE_PERCENT,
+          ROW_NUMBER() OVER (
+            PARTITION BY match_id,
+            stage,
+            competitor_class
+            ORDER BY
+              stage_points DESC
+          ) AS RANK,
+          hf
+        FROM
+          stage_points_tb
       )
-      SELECT match_id,
-             RANK,
-             time,
-             STAGE_POINTS as points,
-             STAGE_PERCENT as percent,
-             competitor_name,
-             hf
-      FROM stage_result
+      SELECT
+        match_id,
+        RANK,
+        time,
+        STAGE_POINTS as points,
+        STAGE_PERCENT as percent,
+        competitor_name,
+        hf
+      FROM
+        stage_result
       ` +
       'WHERE match_id=? AND competitor_class=? AND stage=?' +
       'ORDER BY RANK',
@@ -330,26 +430,46 @@ function stages_combined(match, stage) {
     db.all(
       `
       WITH stage_points_tb AS (
-          SELECT *,
-              (hf / MAX(hf) OVER (PARTITION BY stage, match_id)) *
-              MAX(raw_points) OVER (PARTITION BY stage, match_id) AS stage_points
-          FROM data
-      ), stage_result AS (
-          SELECT stage,
-                 match_id,
-                 competitor_name,
-                 time,
-                 ROUND(stage_points, 1) AS STAGE_POINTS,
-                 ROUND(
-                     (stage_points /
-                     MAX(raw_points) OVER (PARTITION BY stage, match_id)) * 100,
-                     2
-                 ) AS STAGE_PERCENT,
-                 ROW_NUMBER() OVER (PARTITION BY stage ORDER BY stage_points DESC) AS RANK, hf
-          FROM stage_points_tb
+        SELECT
+          *,
+          (
+            hf / MAX(hf) OVER (PARTITION BY stage, match_id)
+          ) * MAX(raw_points) OVER (PARTITION BY stage, match_id) AS stage_points
+        FROM
+          data
+      ),
+      stage_result AS (
+        SELECT
+          stage,
+          match_id,
+          competitor_name,
+          time,
+          ROUND(stage_points, 1) AS STAGE_POINTS,
+          ROUND(
+            (
+              stage_points / MAX(raw_points) OVER (PARTITION BY stage, match_id)
+            ) * 100,
+            2
+          ) AS STAGE_PERCENT,
+          ROW_NUMBER() OVER (
+            PARTITION BY stage
+            ORDER BY
+              stage_points DESC
+          ) AS RANK,
+          hf
+        FROM
+          stage_points_tb
       )
-      SELECT match_id, RANK, time, STAGE_POINTS as points, STAGE_PERCENT as percent, competitor_name, hf
-      FROM stage_result
+      SELECT
+        match_id,
+        RANK,
+        time,
+        STAGE_POINTS as points,
+        STAGE_PERCENT as percent,
+        competitor_name,
+        hf
+      FROM
+        stage_result
       ` +
       'WHERE match_id=? AND stage=?' +
       'ORDER BY RANK',
