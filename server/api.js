@@ -178,6 +178,7 @@ function stages_by_competitor(match, competitor) {
           ) AS STAGE_PERCENT,
           ROW_NUMBER() OVER (
             PARTITION BY stage,
+            match_id,
             competitor_class
             ORDER BY
               stage_points DESC
