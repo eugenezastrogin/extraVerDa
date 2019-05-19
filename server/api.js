@@ -18,7 +18,8 @@ function extractEventName(address) {
   }
 }
 
-function dbinit(match, html) {
+function dbinit(address, html) {
+  const match = extractEventName(address);
   return new Promise((resolve, reject) => {
     const converted = tabletojson.convert(html);
 
@@ -65,9 +66,20 @@ function dbinit(match, html) {
           r[11]
         ));
       });
-      stmt.finalize(() => resolve(match));
+      stmt.finalize(() => {
+        getPassed(match).then(sec => {
+          getBody.cache[address] = [Date.now(), sec];
+        })
+        resolve(match);
+      });
     });
   })
+}
+
+function needsUpdate([lastFetched, elapsedSecs]) {
+  const isStale = (Date.now() - lastFetched) < (15 * 60 * 1000);
+  const onGoing = elapsedSecs < (2 * 24 * 60 * 60);
+  return onGoing && isStale;
 }
 
 async function getBody(address, online=true) {
@@ -80,11 +92,9 @@ async function getBody(address, online=true) {
   // Memoize for 15 minutes before refetching
   if (
     getBody.cache[address] &&
-    ((Date.now() - getBody.cache[address]) < 900000)
+    !needsUpdate(getBody.cache[address])
   ) {
     return Promise.resolve(extractEventName(address));
-  } else {
-    getBody.cache[address] = Date.now();
   }
   console.log('Fetching anew: ', address);
 
@@ -105,8 +115,29 @@ async function getBody(address, online=true) {
     );
   }
 
-  return dbinit(extractEventName(address), body);
+  return dbinit(address, body);
 };
+
+function getPassed(match) {
+  // Return seconds passed from last modified match verification row
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT
+        strftime('%s', 'now') -
+        strftime('%s', MAX(datetime(last_modified))) as passed
+      FROM data
+      ` +
+      'WHERE match_id=?',
+      match,
+      (err, rows) => {
+        if (err) {
+          reject(err);
+        }
+        resolve(rows[0].passed);
+      },
+    );
+  });
+}
 
 function classes(match) {
   return new Promise((resolve, reject) => {
