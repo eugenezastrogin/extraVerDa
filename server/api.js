@@ -305,6 +305,7 @@ function combined_overall(match) {
         SELECT
           match_id,
           competitor_name,
+          competitor_class AS class,
           SUM(stage_points) as competitor_points
         FROM
           stage_points_tb
