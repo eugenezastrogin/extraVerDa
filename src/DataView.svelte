@@ -23,6 +23,7 @@
     <th>%
     <th>Time
     <th>Points
+    <th>HF
   </tr>
 {#each data as item}
   <tr style={item.competitor_name == shooter ? 'background-color:#f1135a6b': ''}>
@@ -31,6 +32,7 @@
     <td>{item.percent}
     <td>{item.time}
     <td>{item.points}
+    <td>{item.hf}
   </tr>
 {/each}
 </table>
@@ -43,6 +45,7 @@
     <th>Place
     <th>%
     <th>Points
+    <th>HF
   </tr>
 {#each data as item}
   <tr>
@@ -50,6 +53,7 @@
     <td>{item.RANK}
     <td>{item.percent}
     <td>{item.points}
+    <td>{item.hf}
   </tr>
 {/each}
 </table>
