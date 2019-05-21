@@ -189,11 +189,11 @@ l }
   {_class || 'Class'} by stage
 </button>
 
-<button on:click={getCombinedOverall}>
+<button disabled={competition_link===''} on:click={getCombinedOverall}>
   Combined Overall
 </button>
 
-<button on:click={getCombinedStage}>
+<button disabled={competition_link===''} on:click={getCombinedStage}>
   Combined by stage
 </button>
 
