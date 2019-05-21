@@ -82,6 +82,7 @@ function dbinsert(address, html) {
       stmt.finalize(() => {
         getPassed(match).then(sec => {
           _getBody.cache[address] = [Date.now(), sec];
+          getBody.cache.delete(address);
         })
         resolve(match);
       });
