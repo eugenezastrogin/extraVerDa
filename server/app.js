@@ -10,7 +10,6 @@ const mr = require('./api');
 
 const app = express();
 
-const mode_online = true;
 
 // create a write stream (in append mode)
 const accessLogStream =
@@ -29,7 +28,7 @@ app.get('/match', function(req, res) {
   const verification = req.query.e;
 
   if (verification) {
-    mr.getBody(verification, mode_online).then(() => {
+    mr.getBody(verification).then(() => {
       res.status(200).send(JSON.stringify({ ok: true }));
     }).catch(e => {
       if (e === 'bl') {
@@ -44,7 +43,7 @@ app.get('/match', function(req, res) {
 app.get('/classes', function(req, res) {
   const verification = req.query.e;
 
-  mr.getBody(verification, mode_online).then(match => {
+  mr.getBody(verification).then(match => {
     mr.classes(match).then(data => {
       res.status(200).send(data);
     }).catch(e => console.log(e));
@@ -55,7 +54,7 @@ app.get('/competitors', function(req, res) {
   const verification = req.query.e;
   const comp_class = req.query.class;
 
-  mr.getBody(verification, mode_online).then(match => {
+  mr.getBody(verification).then(match => {
     mr.competitors(match, comp_class).then(data => {
       res.status(200).send(data);
     }).catch(e => console.log(e));
@@ -68,7 +67,7 @@ app.get('/stages', function(req, res) {
   const comp_class = req.query.class;
   const comp_stage = req.query.stage;
 
-  mr.getBody(verification, mode_online).then(match => {
+  mr.getBody(verification).then(match => {
     if (comp_class === 'overall') {
       mr.stages_combined(match, comp_stage).then(data => {
         res.status(200).send(data);
@@ -90,7 +89,7 @@ app.get('/overall', function(req, res) {
   const comp_class = req.query.class;
   const type = req.query.type;
 
-  mr.getBody(verification, mode_online).then(match => {
+  mr.getBody(verification).then(match => {
     if (comp_class === 'combined') {
       mr.combined_overall(match).then(data => {
         res.status(200).send(data);

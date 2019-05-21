@@ -3,6 +3,12 @@
 const fsPromises = require('fs').promises;
 const path = require('path');
 const fetch = require('node-fetch');
+const Bottleneck = require('bottleneck/es5');
+
+const limiter = new Bottleneck({
+  maxConcurrent: 1,
+  minTime: 1000,
+});
 
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database(':memory:');
@@ -18,8 +24,32 @@ function extractEventName(address) {
   }
 }
 
-function dbinit(address, html) {
+// Setup db
+dbinit(() => console.log("Database initialized, API ready!"));
+
+function dbinit(cb) {
+  const mkTable =
+  `
+  CREATE TABLE IF NOT EXISTS data (
+    match_id TEXT,
+    competitor_name TEXT,
+    competitor_class TEXT,
+    competitor_pf TEXT,
+    competitor_cat TEXT,
+    stage INTEGER,
+    hf REAL,
+    raw_points INTEGER,
+    time REAL,
+    last_modified TEXT,
+    UNIQUE(match_id, stage, competitor_name)
+  );
+  `;
+  db.run(mkTable, cb);
+}
+
+function dbinsert(address, html) {
   const match = extractEventName(address);
+
   return new Promise((resolve, reject) => {
     const converted = tabletojson.convert(html);
 
@@ -29,23 +59,6 @@ function dbinit(address, html) {
       .map(y => y.map(z => Object.values(z)));
 
     db.serialize(function() {
-      const sqlstr =
-      `
-      CREATE TABLE IF NOT EXISTS data (
-        match_id TEXT,
-        competitor_name TEXT,
-        competitor_class TEXT,
-        competitor_pf TEXT,
-        competitor_cat TEXT,
-        stage INTEGER,
-        hf REAL,
-        raw_points INTEGER,
-        time REAL,
-        last_modified TEXT,
-        UNIQUE(match_id, stage, competitor_name)
-      );
-      `;
-      db.run(sqlstr);
       const stmt = db.prepare(
         'INSERT OR REPLACE INTO data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       );
@@ -68,7 +81,7 @@ function dbinit(address, html) {
       });
       stmt.finalize(() => {
         getPassed(match).then(sec => {
-          getBody.cache[address] = [Date.now(), sec];
+          _getBody.cache[address] = [Date.now(), sec];
         })
         resolve(match);
       });
@@ -82,40 +95,51 @@ function needsUpdate([lastFetched, elapsedSecs]) {
   return onGoing && isStale;
 }
 
-async function getBody(address, online=true) {
+function getBody(address) {
+  // Cache entire promise to prevent fetch spamming of already ongoing queries
+  const cache = getBody.cache || (getBody.cache = new Map());
+  let promise;
+
+  if (cache.has(address)) {
+    promise = cache.get(address)
+  } else {
+    promise = _getBody(address);
+    cache.set(address, promise)
+  }
+
+  return promise
+}
+
+async function _getBody(address) {
   const rg = /m.+dy\.ru\/.+results\/.+\/\?mode=verif.+/;
+
+  // Return broken link flag if not a proper url
   if (!rg.test(address)) return Promise.reject('bl');
 
-  if (!getBody.cache) {
-    getBody.cache = {};
+  if (!_getBody.cache) {
+    _getBody.cache = {};
   }
   // Memoize for 15 minutes before refetching
   if (
-    getBody.cache[address] &&
-    !needsUpdate(getBody.cache[address])
+    _getBody.cache[address] &&
+    !needsUpdate(_getBody.cache[address])
   ) {
     return Promise.resolve(extractEventName(address));
   }
+
   console.log('Fetching anew: ', address);
 
-  let body;
-  if (online) {
-    const html = fetch(
+  const data = await limiter.schedule(() =>
+    fetch(
       address,
       { headers: { 'User-Agent': 'Mozilla/5.0' } }
-    );
-    const data = await html;
-    console.log('STATUS IS: ', data.status);
-    if (data.status != '200') return
-    body = await data.text();
-  } else {
-    body = await fsPromises.readFile(
-      path.resolve(__dirname, './test.html'),
-      { encoding: 'UTF-8' },
-    );
-  }
+    )
+  );
+  console.log('STATUS IS: ', data.status);
+  if (data.status != '200') return
+  const body = await data.text();
 
-  return dbinit(address, body);
+  return dbinsert(address, body);
 };
 
 function getPassed(match) {
