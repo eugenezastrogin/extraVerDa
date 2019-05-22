@@ -91,6 +91,8 @@ function dbinsert(address, html) {
 }
 
 function needsUpdate([lastFetched, elapsedSecs]) {
+  // Memoize for 15 minutes before refetching if ongoing,
+  // otherwise - keep forever
   const isStale = (Date.now() - lastFetched) < (15 * 60 * 1000);
   const onGoing = elapsedSecs < (2 * 24 * 60 * 60);
   return onGoing && isStale;
@@ -120,7 +122,6 @@ async function _getBody(address) {
   if (!_getBody.cache) {
     _getBody.cache = {};
   }
-  // Memoize for 15 minutes before refetching
   if (
     _getBody.cache[address] &&
     !needsUpdate(_getBody.cache[address])

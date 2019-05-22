@@ -12,6 +12,10 @@
   table, th, td {
     border: 1px solid black;
   }
+
+  .cur {
+    background-color: #f1135a6b;
+  }
 </style>
 
 {#if viewType === 'stageView'}
@@ -26,7 +30,7 @@
     <th>HF
   </tr>
 {#each data as item}
-  <tr style={item.competitor_name == shooter ? 'background-color:#f1135a6b': ''}>
+  <tr class={item.competitor_name == shooter ? "cur": ""}>
     <td>{item.RANK}
     <td>{item.competitor_name.split(' ').splice(1).join(' ')}
     <td>{item.percent}
@@ -68,7 +72,7 @@
     <th>Points
   </tr>
 {#each data as item}
-  <tr style={item.competitor_name === shooter ? 'background-color:#f1135a6b': ''}>
+  <tr class={item.competitor_name == shooter ? "cur": ""}>
     <td>{item.RANK}
     <td>{item.competitor_name.split(' ').splice(1).join(' ')}
     <td>{item.percent}
@@ -88,7 +92,7 @@
     <th>Class
   </tr>
 {#each data as item}
-  <tr style={item.competitor_name === shooter ? 'background-color:#f1135a6b': ''}>
+  <tr class={item.competitor_name == shooter ? "cur": ""}>
     <td>{item.RANK}
     <td>{item.competitor_name.split(' ').splice(1).join(' ')}
     <td>{item.percent}
