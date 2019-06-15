@@ -103,7 +103,10 @@ function getBody(address) {
   const cache = getBody.cache || (getBody.cache = new Map());
   let promise;
 
-  if (cache.has(address)) {
+  if (
+    cache.has(address) &&
+    !needsUpdate(_getBody.cache[address])
+  ) {
     promise = cache.get(address)
   } else {
     promise = _getBody(address);
