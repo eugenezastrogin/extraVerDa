@@ -93,7 +93,7 @@ function dbinsert(address, html) {
 function needsUpdate([lastFetched, elapsedSecs]) {
   // Memoize for 15 minutes before refetching if ongoing,
   // otherwise - keep forever
-  const isStale = (Date.now() - lastFetched) < (15 * 60 * 1000);
+  const isStale = (Date.now() - lastFetched) > (15 * 60 * 1000);
   const onGoing = elapsedSecs < (2 * 24 * 60 * 60);
   return onGoing && isStale;
 }
