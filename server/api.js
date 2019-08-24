@@ -74,9 +74,9 @@ function dbinsert(address, html) {
           ...comp_cats,
           r[0],
           r[1],
-          r[2],
-          r[10],
-          r[11]
+          r[3],
+          r[12],
+          r[13]
         ));
       });
       stmt.finalize(() => {
@@ -134,15 +134,19 @@ async function _getBody(address) {
 
   console.log('Fetching anew: ', address);
 
-  const data = await limiter.schedule(() =>
-    fetch(
-      address,
-      { headers: { 'User-Agent': 'Mozilla/5.0' } }
-    )
-  );
-  console.log('STATUS IS: ', data.status);
-  if (data.status != '200') return
-  const body = await data.text();
+  // const data = await limiter.schedule(() =>
+  //   fetch(
+  //     address,
+  //     { headers: { 'User-Agent': 'Mozilla/5.0' } }
+  //   )
+  // );
+  // console.log('STATUS IS: ', data.status);
+  // if (data.status != '200') return
+  // const body = await data.text();
+  const body = await fsPromises.readFile(
+      path.resolve(__dirname, '../public/www.makeready.ru.html'),
+      { encoding: 'UTF-8' },
+    );
 
   return dbinsert(address, body);
 };
